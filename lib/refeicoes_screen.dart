@@ -73,6 +73,7 @@ class _RefeicoeBodyState extends State<RefeicoeBody> {
   //
   // Desconfirmar: lê o snapshot salvo para subtrair EXATAMENTE o que
   //   foi somado antes — não importa se o usuário editou depois.
+  // Obs: *Futura Implementação*.
   // ─────────────────────────────────────────────────────────────
   Future<void> _confirmarRefeicao({
     required String mealFirestoreName,
@@ -94,6 +95,7 @@ class _RefeicoeBodyState extends State<RefeicoeBody> {
       // usa os valores do snapshot para subtrair exatamente o que foi somado
       double calSubtrair  = totalCal;
       double protSubtrair = totalProt;
+    
 
       if (snap.exists) {
         final d = snap.data()!;
