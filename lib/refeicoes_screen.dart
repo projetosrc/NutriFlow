@@ -30,8 +30,8 @@ class MealData {
 // lista das 3 refeições — se precisar adicionar lanche basta colocar aqui
 const _meals = [
   MealData(
-    name:          'Cafe da Manha',
-    firestoreName: 'Café da Manhã',
+    name:          'Café da Manhã',
+    firestoreName: 'Café_da_Manhã',
     timeRange:     '06:00 - 09:00',
     icon:          Icons.wb_twilight,
     iconColor:     Color(0xFFF4A261),
@@ -224,7 +224,7 @@ class _RefeicoeBodyState extends State<RefeicoeBody> {
                 context,
                 MaterialPageRoute(
                   builder: (_) => RefeicaoScreen(
-                    nomeRefeicao: meal.firestoreName,
+                    nomeRefeicao: meal.name,
                     timeRange:    meal.timeRange,
                     iconColor:    meal.iconColor,
                     iconBgColor:  meal.iconBgColor,
