@@ -1,9 +1,12 @@
-// adicionar_alimento_screen.dart
-// Tela de busca e adição de alimentos — NutriFlow
+// =============================================================
+//  adicionar_alimento_screen.dart
+//  Tela de busca e adição de alimentos — NutriFlow
 //
-// Ao tocar no "+" de um alimento, abre um bottom sheet para o
-// usuário escolher a quantidade em gramas. Os macros são
-// recalculados proporcionalmente antes de salvar.
+//  MUDANÇA: ao tocar em "+" abre um bottom sheet onde o usuário
+//  escolhe a quantidade em gramas (mínimo 10g, incrementos de 10g).
+//  Os macros e calorias são recalculados proporcionalmente antes
+//  de salvar no Firestore.
+// =============================================================
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,27 +15,31 @@ import 'package:firebase_auth/firebase_auth.dart';
 class AdicionarAlimentoScreen extends StatefulWidget {
   final String nomeRefeicao;
 
-  const AdicionarAlimentoScreen({super.key, required this.nomeRefeicao});
+  const AdicionarAlimentoScreen({
+    super.key,
+    required this.nomeRefeicao,
+  });
 
   @override
-  State<AdicionarAlimentoScreen> createState() => _AdicionarAlimentoScreenState();
+  State<AdicionarAlimentoScreen> createState() =>
+      _AdicionarAlimentoScreenState();
 }
 
 class _AdicionarAlimentoScreenState extends State<AdicionarAlimentoScreen> {
-  final _firestore   = FirebaseFirestore.instance;
-  final _user        = FirebaseAuth.instance.currentUser;
-  final _searchCtrl  = TextEditingController();
+  final _firestore = FirebaseFirestore.instance;
+  final _user = FirebaseAuth.instance.currentUser;
+  final TextEditingController _searchCtrl = TextEditingController();
 
-  List<Map<String, dynamic>> _todosAlimentos     = [];
+  List<Map<String, dynamic>> _todosAlimentos = [];
   List<Map<String, dynamic>> _alimentosFiltrados = [];
-  bool   _isLoading    = true;
-  String? _adicionandoId; // id do alimento sendo adicionado no momento
+  bool _isLoading = true;
+  String? _adicionandoId;
 
   @override
   void initState() {
     super.initState();
     _carregarAlimentos();
-    _searchCtrl.addListener(_filtrar); // filtra em tempo real ao digitar
+    _searchCtrl.addListener(_filtrar);
   }
 
   @override
@@ -42,9 +49,11 @@ class _AdicionarAlimentoScreenState extends State<AdicionarAlimentoScreen> {
     super.dispose();
   }
 
-  // ── READ: busca todos os alimentos do Firestore ───────────────
-  // Guarda os valores por 100g para recalcular depois
-  // com base na quantidade que o usuário escolher.
+  // ─────────────────────────────────────────────
+  //  READ — Carrega alimentos do Firestore
+  //  Mantém os valores por 100g para recalcular
+  //  depois com base nas gramas escolhidas.
+  // ─────────────────────────────────────────────
   Future<void> _carregarAlimentos() async {
     try {
       final snapshot = await _firestore.collection('alimentos').get();
@@ -52,42 +61,45 @@ class _AdicionarAlimentoScreenState extends State<AdicionarAlimentoScreen> {
       final lista = snapshot.docs.map((doc) {
         final d = doc.data();
 
-        double toD(dynamic v) => v is num ? v.toDouble() : 0.0;
-        int    toI(dynamic v) => v is num ? v.toInt()    : 0;
+        double toD(dynamic v) => (v is num) ? v.toDouble() : 0.0;
+        int    toI(dynamic v) => (v is num) ? v.toInt()    : 0;
 
-        // valores base por 100g
-        final cal100  = toD(d['calorias_por_100g']);
+        // Valores BASE por 100g — usados para recalcular proporcionalmente
         final carb100 = toD(d['carboidratos_por_100g']);
         final prot100 = toD(d['proteinas_por_100g']);
         final gord100 = toD(d['gorduras_por_100g']);
         final fib100  = toD(d['fibras_por_100g']);
+        final cal100  = toD(d['calorias_por_100g']);
         final porcPad = toI(d['porcao_padrao_g'] ?? 100);
 
         return {
-          'id':    doc.id,
-          'nome':  d['nome'] ?? '',
-          'porcao': '${porcPad}g',
-          // valores por 100g guardados para proporcionalidade
-          'cal100':  cal100,
-          'carb100': carb100,
-          'prot100': prot100,
-          'gord100': gord100,
-          'fib100':  fib100,
-          // valores já calculados para a porção padrão (exibição no card)
+          'id':       doc.id,
+          'nome':     d['nome'] ?? '',
+          // Exibe a porção padrão no card, mas permite alterar no pop-up
+          'porcao':   '${porcPad}g',
+          // Valores por 100g — guardados para proporcionalidade
+          'cal100':   cal100,
+          'carb100':  carb100,
+          'prot100':  prot100,
+          'gord100':  gord100,
+          'fib100':   fib100,
+          // Valores calculados para a porção padrão (exibição no card)
           'calorias': (cal100  * porcPad / 100).round(),
-          'carb':      carb100 * porcPad / 100,
-          'prot':      prot100 * porcPad / 100,
-          'gord':      gord100 * porcPad / 100,
-          'fib':       fib100  * porcPad / 100,
+          'carb':     carb100  * porcPad / 100,
+          'prot':     prot100  * porcPad / 100,
+          'gord':     gord100  * porcPad / 100,
+          'fib':      fib100   * porcPad / 100,
         };
-      }).toList()
-        ..sort((a, b) => (a['nome'] as String).compareTo(b['nome'] as String));
+      }).toList();
+
+      lista.sort((a, b) =>
+          (a['nome'] as String).compareTo(b['nome'] as String));
 
       if (mounted) {
         setState(() {
-          _todosAlimentos     = lista;
+          _todosAlimentos    = lista;
           _alimentosFiltrados = lista;
-          _isLoading          = false;
+          _isLoading         = false;
         });
       }
     } catch (e) {
@@ -98,62 +110,83 @@ class _AdicionarAlimentoScreenState extends State<AdicionarAlimentoScreen> {
     }
   }
 
-  // filtra a lista pelo texto digitado na busca
+  // ─────────────────────────────────────────────
+  //  FILTRO em tempo real
+  // ─────────────────────────────────────────────
   void _filtrar() {
     final query = _searchCtrl.text.toLowerCase().trim();
     setState(() {
       _alimentosFiltrados = query.isEmpty
           ? _todosAlimentos
           : _todosAlimentos
-              .where((a) => (a['nome'] as String).toLowerCase().contains(query))
+              .where((a) =>
+                  (a['nome'] as String).toLowerCase().contains(query))
               .toList();
     });
   }
 
-  // ── abre o bottom sheet de seleção de gramas ──────────────────
-  // o resultado é a quantidade escolhida ou null (cancelou)
+  // ─────────────────────────────────────────────
+  //  POPUP — Seleção de gramas
+  //  Abre um bottom sheet com contador +/- de 10g.
+  //  Mostra preview dos macros em tempo real.
+  //  Mínimo: 10g.
+  // ─────────────────────────────────────────────
   Future<void> _mostrarPopupGramas(Map<String, dynamic> alimento) async {
-    final porcaoPadrao = int.tryParse(
-            (alimento['porcao'] as String).replaceAll('g', '')) ??
-        100;
+    // Extrai porção padrão (ex: "100g" → 100)
+    final String porcaoStr = alimento['porcao'] as String;
+    final int porcaoPadrao =
+        int.tryParse(porcaoStr.replaceAll('g', '')) ?? 100;
 
-    final gramasSelecionadas = await showModalBottomSheet<int>(
+    // Abre o bottom sheet; o resultado é a quantidade escolhida ou null
+    final int? gramasSelecionadas = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _BottomSheetGramas(
-        alimento:      alimento,
+        alimento: alimento,
         porcaoInicial: porcaoPadrao,
       ),
     );
 
+    // Usuário fechou sem confirmar
     if (gramasSelecionadas == null) return;
 
-    // recalcula os macros proporcionalmente à quantidade escolhida
-    final fator  = gramasSelecionadas / 100.0;
-    final ajustado = {
+    // ── Recalcula macros proporcionalmente ──────
+    final double fator = gramasSelecionadas / 100.0;
+    final double cal100  = (alimento['cal100']  as num).toDouble();
+    final double carb100 = (alimento['carb100'] as num).toDouble();
+    final double prot100 = (alimento['prot100'] as num).toDouble();
+    final double gord100 = (alimento['gord100'] as num).toDouble();
+    final double fib100  = (alimento['fib100']  as num).toDouble();
+
+    final Map<String, dynamic> alimentoAjustado = {
       ...alimento,
       'porcao':   '${gramasSelecionadas}g',
-      'calorias': ((alimento['cal100'] as num).toDouble() * fator).round(),
-      'carb':      (alimento['carb100'] as num).toDouble() * fator,
-      'prot':      (alimento['prot100'] as num).toDouble() * fator,
-      'gord':      (alimento['gord100'] as num).toDouble() * fator,
-      'fib':       (alimento['fib100']  as num).toDouble() * fator,
+      'calorias': (cal100  * fator).round(),
+      'carb':     carb100  * fator,
+      'prot':     prot100  * fator,
+      'gord':     gord100  * fator,
+      'fib':      fib100   * fator,
     };
 
-    await _adicionarAlimento(ajustado);
+    await _adicionarAlimento(alimentoAjustado);
   }
 
-  // ── CREATE: salva o alimento na refeição no Firestore ─────────
+  // ─────────────────────────────────────────────
+  //  CREATE — Salva alimento na refeição
+  // ─────────────────────────────────────────────
   Future<void> _adicionarAlimento(Map<String, dynamic> alimento) async {
     if (_user == null) return;
     setState(() => _adicionandoId = alimento['id']);
 
     try {
-      final docId = '${_user!.uid}_${widget.nomeRefeicao.replaceAll(' ', '_')}';
-      final refeicaoRef = _firestore.collection('refeicoes_usuario').doc(docId);
+      final refeicaoDocId =
+          '${_user!.uid}_${widget.nomeRefeicao.replaceAll(' ', '_')}';
 
-      // adiciona o item na subcoleção
+      final refeicaoRef = _firestore
+          .collection('refeicoes_usuario')
+          .doc(refeicaoDocId);
+
       await refeicaoRef.collection('itens').add({
         'alimentoId':   alimento['id'],
         'nome':         alimento['nome'],
@@ -166,7 +199,6 @@ class _AdicionarAlimentoScreenState extends State<AdicionarAlimentoScreen> {
         'adicionadoEm': FieldValue.serverTimestamp(),
       });
 
-      // atualiza os totais do doc pai com increment (evita race conditions)
       await refeicaoRef.set({
         'nomeRefeicao':  widget.nomeRefeicao,
         'uid':           _user!.uid,
@@ -189,14 +221,19 @@ class _AdicionarAlimentoScreenState extends State<AdicionarAlimentoScreen> {
 
   void _showMessage(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: Colors.teal,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.teal,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
+  // ─────────────────────────────────────────────
+  //  BUILD
+  // ─────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -208,10 +245,15 @@ class _AdicionarAlimentoScreenState extends State<AdicionarAlimentoScreen> {
           onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.arrow_back, color: Colors.black, size: 22),
         ),
-        title: Text(widget.nomeRefeicao,
-            style: const TextStyle(
-                color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18)),
-        // campo de busca embutido no appbar
+        title: Text(
+          widget.nomeRefeicao,
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+        centerTitle: false,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(64),
           child: Padding(
@@ -219,14 +261,16 @@ class _AdicionarAlimentoScreenState extends State<AdicionarAlimentoScreen> {
             child: Container(
               height: 44,
               decoration: BoxDecoration(
-                  color: const Color(0xFFF0F0F0),
-                  borderRadius: BorderRadius.circular(12)),
+                color: const Color(0xFFF0F0F0),
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: TextField(
                 controller: _searchCtrl,
                 decoration: const InputDecoration(
                   hintText: 'Buscar alimentos...',
                   hintStyle: TextStyle(color: Colors.grey, fontSize: 15),
-                  prefixIcon: Icon(Icons.search, color: Colors.grey, size: 20),
+                  prefixIcon:
+                      Icon(Icons.search, color: Colors.grey, size: 20),
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(vertical: 12),
                 ),
@@ -236,14 +280,16 @@ class _AdicionarAlimentoScreenState extends State<AdicionarAlimentoScreen> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.teal))
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.teal))
           : Column(
               children: [
                 const Padding(
                   padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Text(
                     'Selecione os alimentos consumidos e acompanhe automaticamente suas calorias e nutrientes para manter uma alimentação equilibrada.',
-                    style: TextStyle(fontSize: 13, color: Colors.teal, height: 1.5),
+                    style: TextStyle(
+                        fontSize: 13, color: Colors.teal, height: 1.5),
                   ),
                 ),
                 Expanded(
@@ -252,23 +298,27 @@ class _AdicionarAlimentoScreenState extends State<AdicionarAlimentoScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.search_off, size: 56, color: Colors.grey[300]),
+                              Icon(Icons.search_off,
+                                  size: 56, color: Colors.grey[300]),
                               const SizedBox(height: 12),
                               Text(
                                 _searchCtrl.text.isEmpty
                                     ? 'Nenhum alimento cadastrado.\nVerifique a coleção "alimentos" no Firestore.'
                                     : 'Nenhum resultado para "${_searchCtrl.text}".',
-                                style: const TextStyle(color: Colors.grey, fontSize: 14),
+                                style: const TextStyle(
+                                    color: Colors.grey, fontSize: 14),
                                 textAlign: TextAlign.center,
                               ),
                             ],
                           ),
                         )
                       : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                          padding:
+                              const EdgeInsets.fromLTRB(16, 0, 16, 24),
                           itemCount: _alimentosFiltrados.length,
-                          itemBuilder: (_, i) =>
-                              _buildAlimentoCard(_alimentosFiltrados[i]),
+                          itemBuilder: (context, index) =>
+                              _buildAlimentoCard(
+                                  _alimentosFiltrados[index]),
                         ),
                 ),
               ],
@@ -276,18 +326,23 @@ class _AdicionarAlimentoScreenState extends State<AdicionarAlimentoScreen> {
     );
   }
 
+  // ─────────────────────────────────────────────
+  //  Card de alimento na lista
+  // ─────────────────────────────────────────────
   Widget _buildAlimentoCard(Map<String, dynamic> alimento) {
-    final adicionando = _adicionandoId == alimento['id'];
+    final bool adicionando = _adicionandoId == alimento['id'];
 
-    String fmt(double v) => v == v.truncateToDouble()
-        ? v.toInt().toString()
-        : v.toStringAsFixed(1);
+    String fmt(double v) =>
+        v == v.truncateToDouble()
+            ? v.toInt().toString()
+            : v.toStringAsFixed(1);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-          color: const Color(0xFFEAF7F4),
-          borderRadius: BorderRadius.circular(14)),
+        color: const Color(0xFFEAF7F4),
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
         child: Row(
@@ -297,43 +352,61 @@ class _AdicionarAlimentoScreenState extends State<AdicionarAlimentoScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(alimento['nome'],
-                      style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87)),
+                  Text(
+                    alimento['nome'],
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
                   const SizedBox(height: 3),
-                  Text('${alimento['porcao']} · ${alimento['calorias']} kcal',
-                      style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                  Text(
+                    '${alimento['porcao']} · ${alimento['calorias']} kcal',
+                    style: const TextStyle(
+                        fontSize: 13, color: Colors.black54),
+                  ),
                   const SizedBox(height: 10),
-                  // labels e valores dos macros em duas linhas
-                  Row(children: ['Carb', 'Prot', 'Gord', 'Fib']
-                      .map((l) => _macroLabel(l))
-                      .toList()),
+                  Row(
+                    children: [
+                      _macroLabel('Carb'),
+                      _macroLabel('Prot'),
+                      _macroLabel('Gord'),
+                      _macroLabel('Fib'),
+                    ],
+                  ),
                   const SizedBox(height: 2),
-                  Row(children: [
-                    _macroValue('${fmt(alimento['carb'])}g'),
-                    _macroValue('${fmt(alimento['prot'])}g'),
-                    _macroValue('${fmt(alimento['gord'])}g'),
-                    _macroValue('${fmt(alimento['fib'])}g'),
-                  ]),
+                  Row(
+                    children: [
+                      _macroValue('${fmt(alimento['carb'])}g'),
+                      _macroValue('${fmt(alimento['prot'])}g'),
+                      _macroValue('${fmt(alimento['gord'])}g'),
+                      _macroValue('${fmt(alimento['fib'])}g'),
+                    ],
+                  ),
                 ],
               ),
             ),
             const SizedBox(width: 12),
-            // botão de adicionar — vira spinner enquanto salva
             adicionando
                 ? const SizedBox(
-                    width: 40, height: 40,
+                    width: 40,
+                    height: 40,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.teal))
+                        strokeWidth: 2, color: Colors.teal),
+                  )
                 : GestureDetector(
+                    // ← agora abre o popup de gramas
                     onTap: () => _mostrarPopupGramas(alimento),
                     child: Container(
-                      width: 40, height: 40,
+                      width: 40,
+                      height: 40,
                       decoration: const BoxDecoration(
-                          color: Colors.teal, shape: BoxShape.circle),
-                      child: const Icon(Icons.add, color: Colors.white, size: 22),
+                        color: Colors.teal,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.add,
+                          color: Colors.white, size: 22),
                     ),
                   ),
           ],
@@ -343,22 +416,29 @@ class _AdicionarAlimentoScreenState extends State<AdicionarAlimentoScreen> {
   }
 
   Widget _macroLabel(String label) => SizedBox(
-    width: 60,
-    child: Text(label,
-        style: const TextStyle(
-            fontSize: 12, color: Colors.teal, fontWeight: FontWeight.w500)),
-  );
+        width: 60,
+        child: Text(label,
+            style: const TextStyle(
+                fontSize: 12,
+                color: Colors.teal,
+                fontWeight: FontWeight.w500)),
+      );
 
   Widget _macroValue(String value) => SizedBox(
-    width: 60,
-    child: Text(value,
-        style: const TextStyle(
-            fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87)),
-  );
+        width: 60,
+        child: Text(value,
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87)),
+      );
 }
 
-// ── Bottom sheet de seleção de gramas ────────────────────────────
-// Widget separado para ter seu próprio setState sem afetar a tela principal
+// =============================================================
+//  _BottomSheetGramas
+//  Widget separado (StatefulWidget) para gerenciar o contador
+//  de gramas e o preview de macros em tempo real.
+// =============================================================
 class _BottomSheetGramas extends StatefulWidget {
   final Map<String, dynamic> alimento;
   final int porcaoInicial;
@@ -373,35 +453,38 @@ class _BottomSheetGramas extends StatefulWidget {
 }
 
 class _BottomSheetGramasState extends State<_BottomSheetGramas> {
-  static const _passo   = 10;
-  static const _minGram = 10;
+  static const int _passo   = 10; // incremento/decremento
+  static const int _minGram = 10; // mínimo permitido
 
   late int _gramas;
 
   @override
   void initState() {
     super.initState();
-    // garante que começa num múltiplo de 10 e acima do mínimo
-    final p = widget.porcaoInicial;
-    _gramas = (p < _minGram)
+    // Começa na porção padrão, garantindo que seja múltiplo de 10 e >= 10
+    final padrao = widget.porcaoInicial;
+    _gramas = (padrao < _minGram)
         ? _minGram
-        : (p % _passo == 0 ? p : (p ~/ _passo) * _passo);
+        : (padrao % _passo == 0 ? padrao : ((padrao ~/ _passo) * _passo));
+    if (_gramas < _minGram) _gramas = _minGram;
   }
 
-  // recalcula um macro para as gramas atuais
-  double _calc(String chave) =>
-      (widget.alimento[chave] as num).toDouble() * _gramas / 100;
+  // Recalcula um macro para a quantidade atual de gramas
+  double _calc(String chave100) {
+    final double base = (widget.alimento[chave100] as num).toDouble();
+    return base * _gramas / 100;
+  }
 
   String _fmt(double v) =>
       v == v.truncateToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
 
   @override
   Widget build(BuildContext context) {
-    final cal  = _calc('cal100');
-    final carb = _calc('carb100');
-    final prot = _calc('prot100');
-    final gord = _calc('gord100');
-    final fib  = _calc('fib100');
+    final double cal  = _calc('cal100');
+    final double carb = _calc('carb100');
+    final double prot = _calc('prot100');
+    final double gord = _calc('gord100');
+    final double fib  = _calc('fib100');
 
     return Container(
       decoration: const BoxDecoration(
@@ -412,56 +495,84 @@ class _BottomSheetGramasState extends State<_BottomSheetGramas> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // alça visual do sheet
+          // ── Alça visual ────────────────────────────────────────
           Container(
-            width: 40, height: 4,
+            width: 40,
+            height: 4,
             margin: const EdgeInsets.only(bottom: 20),
             decoration: BoxDecoration(
-                color: const Color(0xFFDDDDDD),
-                borderRadius: BorderRadius.circular(2)),
+              color: const Color(0xFFDDDDDD),
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
 
-          Text(widget.alimento['nome'],
-              style: const TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-              textAlign: TextAlign.center),
+          // ── Nome do alimento ───────────────────────────────────
+          Text(
+            widget.alimento['nome'],
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 4),
-          const Text('Valores calculados por 100g',
-              style: TextStyle(fontSize: 12, color: Colors.grey)),
+          const Text(
+            'Valores calculados por 100g',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
           const SizedBox(height: 24),
 
-          // contador de gramas com botões +/-
+          // ── Contador de gramas ─────────────────────────────────
           Container(
             decoration: BoxDecoration(
-                color: const Color(0xFFF0FAFA),
-                borderRadius: BorderRadius.circular(16)),
+              color: const Color(0xFFF0FAFA),
+              borderRadius: BorderRadius.circular(16),
+            ),
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                // Botão −
                 _CounterButton(
                   icon: Icons.remove,
                   enabled: _gramas > _minGram,
                   onTap: () {
-                    if (_gramas > _minGram) setState(() => _gramas -= _passo);
+                    if (_gramas > _minGram) {
+                      setState(() => _gramas -= _passo);
+                    }
                   },
                 ),
+
+                // Valor central
                 Column(
                   children: [
-                    Text('$_gramas',
-                        style: const TextStyle(
-                            fontSize: 42,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.teal,
-                            height: 1)),
-                    const Text('gramas',
-                        style: TextStyle(
-                            fontSize: 14, color: Colors.teal, fontWeight: FontWeight.w500)),
+                    Text(
+                      '$_gramas',
+                      style: const TextStyle(
+                        fontSize: 42,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.teal,
+                        height: 1,
+                      ),
+                    ),
+                    const Text(
+                      'gramas',
+                      style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.teal,
+                          fontWeight: FontWeight.w500),
+                    ),
                     const SizedBox(height: 4),
-                    Text('mínimo $_minGram g · incremento $_passo g',
-                        style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text(
+                      'mínimo $_minGram g · incremento $_passo g',
+                      style: const TextStyle(
+                          fontSize: 11, color: Colors.grey),
+                    ),
                   ],
                 ),
+
+                // Botão +
                 _CounterButton(
                   icon: Icons.add,
                   enabled: true,
@@ -473,28 +584,46 @@ class _BottomSheetGramasState extends State<_BottomSheetGramas> {
 
           const SizedBox(height: 20),
 
-          // preview dos macros calculados em tempo real
+          // ── Preview de macros ──────────────────────────────────
           Container(
             decoration: BoxDecoration(
-                color: const Color(0xFFF8F8F8),
-                borderRadius: BorderRadius.circular(14)),
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+              color: const Color(0xFFF8F8F8),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            padding:
+                const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
             child: Row(
               children: [
-                _MacroPreview(label: 'Calorias', value: '${_fmt(cal)} kcal',  color: Colors.orange),
-                _MacroPreview(label: 'Carb',     value: '${_fmt(carb)}g',     color: Colors.teal),
-                _MacroPreview(label: 'Prot',     value: '${_fmt(prot)}g',     color: Colors.teal),
-                _MacroPreview(label: 'Gord',     value: '${_fmt(gord)}g',     color: Colors.teal),
-                _MacroPreview(label: 'Fib',      value: '${_fmt(fib)}g',      color: Colors.teal),
+                _MacroPreview(
+                    label: 'Calorias',
+                    value: '${_fmt(cal)} kcal',
+                    color: Colors.orange),
+                _MacroPreview(
+                    label: 'Carb',
+                    value: '${_fmt(carb)}g',
+                    color: Colors.teal),
+                _MacroPreview(
+                    label: 'Prot',
+                    value: '${_fmt(prot)}g',
+                    color: Colors.teal),
+                _MacroPreview(
+                    label: 'Gord',
+                    value: '${_fmt(gord)}g',
+                    color: Colors.teal),
+                _MacroPreview(
+                    label: 'Fib',
+                    value: '${_fmt(fib)}g',
+                    color: Colors.teal),
               ],
             ),
           ),
 
           const SizedBox(height: 24),
 
-          // botões de ação
+          // ── Botões de ação ─────────────────────────────────────
           Row(
             children: [
+              // Cancelar
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => Navigator.pop(context),
@@ -504,18 +633,20 @@ class _BottomSheetGramasState extends State<_BottomSheetGramas> {
                         borderRadius: BorderRadius.circular(14)),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  child: const Text('Cancelar',
-                      style: TextStyle(
-                          color: Colors.teal,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15)),
+                  child: const Text(
+                    'Cancelar',
+                    style: TextStyle(
+                        color: Colors.teal,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
+              // Confirmar
               Expanded(
                 flex: 2,
                 child: ElevatedButton(
-                  // retorna as gramas escolhidas para a tela principal
                   onPressed: () => Navigator.pop(context, _gramas),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.teal,
@@ -524,11 +655,13 @@ class _BottomSheetGramasState extends State<_BottomSheetGramas> {
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     elevation: 0,
                   ),
-                  child: Text('Adicionar $_gramas g',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15)),
+                  child: Text(
+                    'Adicionar $_gramas g',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15),
+                  ),
                 ),
               ),
             ],
@@ -539,7 +672,7 @@ class _BottomSheetGramasState extends State<_BottomSheetGramas> {
   }
 }
 
-// botão animado +/- do contador
+// ── Botão arredondado +/- ──────────────────────────────────────
 class _CounterButton extends StatelessWidget {
   final IconData icon;
   final bool enabled;
@@ -557,18 +690,20 @@ class _CounterButton extends StatelessWidget {
       onTap: enabled ? onTap : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        width: 52, height: 52,
+        width: 52,
+        height: 52,
         decoration: BoxDecoration(
           color: enabled ? Colors.teal : const Color(0xFFDDDDDD),
           borderRadius: BorderRadius.circular(14),
         ),
-        child: Icon(icon, color: enabled ? Colors.white : Colors.grey, size: 26),
+        child: Icon(icon,
+            color: enabled ? Colors.white : Colors.grey, size: 26),
       ),
     );
   }
 }
 
-// exibe um macro individual no preview
+// ── Preview de macro individual ────────────────────────────────
 class _MacroPreview extends StatelessWidget {
   final String label;
   final String value;
@@ -587,11 +722,15 @@ class _MacroPreview extends StatelessWidget {
         children: [
           Text(label,
               style: TextStyle(
-                  fontSize: 11, color: color, fontWeight: FontWeight.w500)),
+                  fontSize: 11,
+                  color: color,
+                  fontWeight: FontWeight.w500)),
           const SizedBox(height: 2),
           Text(value,
               style: const TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87),
               textAlign: TextAlign.center),
         ],
       ),
