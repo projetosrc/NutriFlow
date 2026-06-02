@@ -100,18 +100,7 @@ class MinhaDietaScreen extends StatelessWidget {
               },
             ),
 
-      // ── FAB ───────────────────────────────────────────────
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // TODO: criação manual de dieta
-        },
-        backgroundColor: kTealDieta,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
-        child: const Icon(Icons.add, color: Colors.white, size: 28),
-      ),
-      floatingActionButtonLocation:
-          FloatingActionButtonLocation.endFloat,
+    
 
       // ── BOTTOM NAV ────────────────────────────────────────
       bottomNavigationBar: BottomNavigationBar(
