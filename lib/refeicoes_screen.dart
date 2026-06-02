@@ -30,7 +30,7 @@ class _RefeicoeScreenState extends State<RefeicoeScreen> {
 
   final List<MealData> meals = [
     MealData(
-      name: 'Cafe da Manha',
+      name: 'Café da Manhã',
       firestoreName: 'Café_da_Manhã',
       timeRange: '06:00 - 09:00',
       icon: Icons.wb_twilight,
@@ -40,7 +40,7 @@ class _RefeicoeScreenState extends State<RefeicoeScreen> {
       destinationBuilder: (_) => const CafeDaManhaScreen(),
     ),
     MealData(
-      name: 'Almoco',
+      name: 'Almoço',
       firestoreName: 'Almoço',
       timeRange: '12:00 - 14:00',
       icon: Icons.wb_sunny,
@@ -286,7 +286,7 @@ class _RefeicoeScreenState extends State<RefeicoeScreen> {
         children: [
           const SizedBox(height: 8),
           const Text(
-            'Suas Refeicoes',
+            'Suas Refeições',
             style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
