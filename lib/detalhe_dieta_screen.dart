@@ -1,9 +1,7 @@
 // =============================================================
 //  detalhe_dieta_screen.dart
-//  Tela de detalhes de uma dieta favorita — NutriFlow
-//
 //  Exibe os alimentos de cada refeição (Café da Manhã, Almoço
-//  e Jantar) que foram salvos junto com a dieta favoritada.
+//  e Jantar) 
 // =============================================================
 
 import 'package:flutter/material.dart';

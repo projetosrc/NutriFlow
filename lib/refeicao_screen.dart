@@ -1,10 +1,6 @@
 // refeicao_screen.dart
 // Tela de detalhes de uma refeição — NutriFlow
-//
-// Esse arquivo substituiu os três arquivos separados
-// (cafe_da_manha_screen, almoco_screen, jantar_screen) que eram
-// praticamente idênticos. Agora é só parametrizar e pronto.
-
+//----------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

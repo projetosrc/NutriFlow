@@ -1,13 +1,12 @@
 // signup_page.dart
-// Tela de Cadastro do aplicativo NutriFlow.
-// Usa Firebase Authentication para criar uma nova conta com email e senha.
-// Após o cadastro, salva o nome do usuário no Firebase Auth (displayName).
+// Tela de Cadastro do NutriFlow.
+// Cria conta no Firebase Auth e já salva os dados do usuário no Firestore.
 
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Pacote de autenticação do Firebase
-import 'login_page.dart'; // Tela de Login
-import 'home_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'refeicoes_screen.dart';
+
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -17,30 +16,24 @@ class SignupPage extends StatefulWidget {
 }
 
 class _SignupPageState extends State<SignupPage> {
-  // Controladores para capturar o texto digitado nos campos
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+  final _nameController     = TextEditingController();
+  final _emailController    = TextEditingController();
   final _passwordController = TextEditingController();
 
-  // Controla se o botão está carregando (evita cliques duplos)
   bool _isLoading = false;
 
   @override
   void dispose() {
-    // Libera os controladores da memória quando o widget é destruído
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  /// Cria uma nova conta no Firebase Auth com email e senha.
-  /// Também salva o nome do usuário no perfil (displayName).
   Future<void> _signup() async {
-    // Evita múltiplos cliques enquanto está carregando
     if (_isLoading) return;
 
-    // Validação básica: todos os campos devem ser preenchidos
+    // todos os campos são obrigatórios
     if (_nameController.text.trim().isEmpty ||
         _emailController.text.trim().isEmpty ||
         _passwordController.text.trim().isEmpty) {
@@ -48,85 +41,68 @@ class _SignupPageState extends State<SignupPage> {
       return;
     }
 
-    // Validação de senha: mínimo de 6 caracteres (requisito do Firebase)
+    // Firebase exige no mínimo 6 caracteres
     if (_passwordController.text.trim().length < 6) {
       _showMessage('A senha deve ter pelo menos 6 caracteres.');
       return;
     }
 
-    // Ativa o indicador de carregamento
     setState(() => _isLoading = true);
 
     try {
-      // Cria a conta no Firebase Auth com email e senha
-      final UserCredential credential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
+      // cria a conta no Firebase Auth
+      final credential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+        email:    _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      // Após criar a conta, salva o nome completo no perfil do usuário
+      // salva o nome no perfil do usuário (aparece na tela de perfil)
       await credential.user?.updateDisplayName(_nameController.text.trim());
 
-      // CREATE: cria o documento do usuário no Firestore com valores padrão
-      // Isso garante que o perfil exista desde o primeiro acesso
+      // cria o documento do usuário no Firestore com valores padrão
+      // isso garante que o perfil já exista na primeira vez que abrir
       await FirebaseFirestore.instance
           .collection('usuarios')
           .doc(credential.user!.uid)
           .set({
-        'nome': _nameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'metaCalorica': 2000,
-        'metaPeso': 70.0,
-        'altura': 170,
-        'carboidrato': 250,
-        'proteina': 150,
-        'gordura': 55,
-        'criadoEm': FieldValue.serverTimestamp(),
+        'nome':        _nameController.text.trim(),
+        'email':       _emailController.text.trim(),
       });
 
-      // Cadastro bem-sucedido — navegar para a tela principal aqui
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
-      _showMessage('Conta criada com sucesso!');
+      // cadastro OK — vai direto pra home
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const RefeicoeScreen()),
+          (route) => false,
+        );
+      }
+     
 
     } on FirebaseAuthException catch (e) {
-      // Trata os erros específicos do Firebase Auth
-      // com mensagens amigáveis em português
-      switch (e.code) {
-        case 'email-already-in-use':
-          _showMessage('Este email já está em uso. Faça login.');
-          break;
-        case 'invalid-email':
-          _showMessage('Email inválido. Verifique e tente novamente.');
-          break;
-        case 'weak-password':
-          _showMessage('Senha fraca. Use pelo menos 6 caracteres.');
-          break;
-        case 'operation-not-allowed':
-          _showMessage('Cadastro com email desativado no Firebase Console.');
-          break;
-        default:
-          _showMessage(e.message ?? 'Erro ao criar conta.');
-      }
-    } catch (e) {
-      // Captura erros genéricos inesperados
+      final msg = switch (e.code) {
+        'email-already-in-use'  => 'Este email já está em uso. Faça login.',
+        'invalid-email'         => 'Email inválido. Verifique e tente novamente.',
+        'weak-password'         => 'Senha fraca. Use pelo menos 6 caracteres.',
+        'operation-not-allowed' => 'Cadastro com email desativado no Firebase Console.',
+        _                       => e.message ?? 'Erro ao criar conta.',
+      };
+      _showMessage(msg);
+    } catch (_) {
       _showMessage('Erro inesperado. Tente novamente.');
     } finally {
-      // Desativa o indicador de carregamento independente do resultado
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  /// Exibe uma mensagem na parte inferior da tela (SnackBar).
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
   }
 
   @override
@@ -135,15 +111,11 @@ class _SignupPageState extends State<SignupPage> {
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        // Gradiente de fundo: azul claro no topo até branco na base
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFE0F7F9),
-              Colors.white,
-            ],
+            end:   Alignment.bottomCenter,
+            colors: [Color(0xFFE0F7F9), Colors.white],
           ),
         ),
         child: SingleChildScrollView(
@@ -151,31 +123,22 @@ class _SignupPageState extends State<SignupPage> {
             children: [
               const SizedBox(height: 60),
 
-              // ── Logo do app ──────────────────────────────────────────
-              Image.asset(
-                'assets/icons/logo.png',
-                height: 200,
-                width: 200,
-              ),
+              // logo
+              Image.asset('assets/icons/logo.png', height: 200, width: 200),
 
               const SizedBox(height: 40),
 
-              // ── Card branco com o formulário de cadastro ──────────────
+              // card branco com formulário
               Container(
                 width: double.infinity,
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  // Bordas arredondadas apenas no topo
                   borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(40),
+                    topLeft:  Radius.circular(40),
                     topRight: Radius.circular(40),
                   ),
                   boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 10,
-                      offset: Offset(0, -5),
-                    ),
+                    BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5)),
                   ],
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
@@ -183,7 +146,6 @@ class _SignupPageState extends State<SignupPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
 
-                    // ── Título e subtítulo ──────────────────────────────
                     const Center(
                       child: Text(
                         'Crie sua conta',
@@ -208,113 +170,50 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                     const SizedBox(height: 40),
 
-                    // ── Campo de Nome Completo ───────────────────────────
-                    const Text(
-                      'Nome completo',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF374151),
-                      ),
-                    ),
+                    _buildLabel('Nome completo'),
                     const SizedBox(height: 8),
-                    TextField(
+                    _buildTextField(
                       controller: _nameController,
-                      textCapitalization: TextCapitalization.words, // Capitaliza cada palavra
-                      decoration: InputDecoration(
-                        hintText: 'Seu nome',
-                        hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-                        filled: true,
-                        fillColor: const Color(0xFFF9FAFB),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 16),
-                      ),
+                      hint: 'Seu nome',
+                      capitalize: TextCapitalization.words,
                     ),
                     const SizedBox(height: 24),
 
-                    // ── Campo de Email ──────────────────────────────────
-                    const Text(
-                      'Email',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF374151),
-                      ),
-                    ),
+                    _buildLabel('Email'),
                     const SizedBox(height: 8),
-                    TextField(
+                    _buildTextField(
                       controller: _emailController,
-                      keyboardType: TextInputType.emailAddress, // Abre teclado com @
-                      decoration: InputDecoration(
-                        hintText: 'seu@email.com',
-                        hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-                        filled: true,
-                        fillColor: const Color(0xFFF9FAFB),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 16),
-                      ),
+                      hint: 'seu@email.com',
+                      keyboardType: TextInputType.emailAddress,
                     ),
                     const SizedBox(height: 24),
 
-                    // ── Campo de Senha ──────────────────────────────────
-                    const Text(
-                      'Senha',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF374151),
-                      ),
-                    ),
+                    _buildLabel('Senha'),
                     const SizedBox(height: 8),
-                    TextField(
+                    _buildTextField(
                       controller: _passwordController,
-                      obscureText: true, // Oculta os caracteres da senha
-                      decoration: InputDecoration(
-                        hintText: '........',
-                        hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-                        filled: true,
-                        fillColor: const Color(0xFFF9FAFB),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 16),
-                      ),
+                      hint: '........',
+                      obscure: true,
                     ),
                     const SizedBox(height: 32),
 
-                    // ── Botão Criar Conta ───────────────────────────────
+                    // botão criar conta
                     SizedBox(
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
-                        // Chama _signup() ou null (desabilita) enquanto carrega
                         onPressed: _isLoading ? null : _signup,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF06B6D4),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
+                              borderRadius: BorderRadius.circular(20)),
                           elevation: 0,
                         ),
                         child: _isLoading
-                            // Mostra um spinner enquanto aguarda resposta do Firebase
                             ? const SizedBox(
-                                height: 24,
-                                width: 24,
+                                height: 24, width: 24,
                                 child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2.5,
-                                ),
+                                  color: Colors.white, strokeWidth: 2.5),
                               )
                             : const Text(
                                 'Criar conta',
@@ -328,7 +227,7 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                     const SizedBox(height: 24),
 
-                    // ── Link para Login ─────────────────────────────────
+                    // link para voltar ao login
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -337,10 +236,8 @@ class _SignupPageState extends State<SignupPage> {
                           style: TextStyle(color: Color(0xFF4B5563)),
                         ),
                         GestureDetector(
-                          onTap: () {
-                            // Volta para a tela de Login (remove SignupPage da pilha)
-                            Navigator.pop(context);
-                          },
+                          // pop volta pra LoginPage que já está na pilha
+                          onTap: () => Navigator.pop(context),
                           child: const Text(
                             'Faça login',
                             style: TextStyle(
@@ -351,7 +248,6 @@ class _SignupPageState extends State<SignupPage> {
                         ),
                       ],
                     ),
-
                   ],
                 ),
               ),
@@ -361,4 +257,38 @@ class _SignupPageState extends State<SignupPage> {
       ),
     );
   }
+
+  Widget _buildLabel(String text) => Text(
+    text,
+    style: const TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.bold,
+      color: Color(0xFF374151),
+    ),
+  );
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hint,
+    TextInputType keyboardType = TextInputType.text,
+    TextCapitalization capitalize = TextCapitalization.none,
+    bool obscure = false,
+  }) =>
+      TextField(
+        controller:           controller,
+        keyboardType:         keyboardType,
+        textCapitalization:   capitalize,
+        obscureText:          obscure,
+        decoration: InputDecoration(
+          hintText:  hint,
+          hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
+          filled:    true,
+          fillColor: const Color(0xFFF9FAFB),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
+      );
 }
