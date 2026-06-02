@@ -1,12 +1,6 @@
-// android/app/build.gradle
-// Configurações de build do módulo principal do app Android (NutriFlow)
-
 plugins {
     id "com.android.application"
     id "kotlin-android"
-    // Plugin do Firebase — lê o google-services.json
-    id "com.google.gms.google-services"
-    // Plugin do Flutter — não remover
     id "dev.flutter.flutter-gradle-plugin"
 }
 
@@ -25,9 +19,7 @@ android {
     }
 
     defaultConfig {
-        // applicationId deve bater com o package_name no Firebase Console
         applicationId "com.nutriflow.app"
-        // minSdk 21 = Android 5.0+ (cobre ~99% dos dispositivos ativos)
         minSdk 21
         targetSdk flutter.targetSdkVersion
         versionCode flutter.versionCode
@@ -37,8 +29,6 @@ android {
 
     buildTypes {
         release {
-            // Desativa o minify para simplificar o build inicial
-            // Habilite (minifyEnabled true) e configure proguard quando for publicar na Play Store
             minifyEnabled false
             shrinkResources false
             signingConfig signingConfigs.debug
@@ -51,10 +41,5 @@ flutter {
 }
 
 dependencies {
-    // Firebase BoM — gerencia as versões de todos os pacotes Firebase automaticamente
-    implementation platform("com.google.firebase:firebase-bom:33.1.0")
-    implementation "com.google.firebase:firebase-analytics"
-
-    // Suporte a múltiplos DEX (necessário quando minSdk < 21 ou app muito grande)
     implementation "androidx.multidex:multidex:2.0.1"
 }
