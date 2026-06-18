@@ -1,0 +1,72 @@
+rules_version = '2';
+
+// =============================================================
+//  Regras de segurança do Cloud Firestore — NutriFlow
+//
+//  Modelo de dados (ver CLAUDE.md):
+//    usuarios/{uid}                         → perfil e consumo do usuário
+//    refeicoes_usuario/{uid}_{nomeRefeicao} → refeição (campo 'uid')
+//      └─ itens/{itemId}                    → alimentos da refeição
+//    alimentos/{id}                         → catálogo global (somente leitura)
+//    dietas_favoritas/{id}                  → dietas salvas (campo 'uid')
+//
+//  Princípio geral: cada usuário só acessa os próprios dados.
+//  IDs de usuário do Firebase Auth são alfanuméricos (sem '_'),
+//  então o prefixo antes do primeiro '_' no id da refeição é o uid.
+// =============================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Usuário precisa estar autenticado.
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Verifica se o uid informado é o do usuário autenticado.
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ── Perfil do usuário ────────────────────────────────────
+    match /usuarios/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ── Refeições do usuário ─────────────────────────────────
+    // O dono é derivado do prefixo do id (uid_NomeRefeicao) e,
+    // nas escritas, também validado pelo campo 'uid' do documento.
+    match /refeicoes_usuario/{refeicaoId} {
+      function ownerFromId() {
+        return refeicaoId.split('_')[0];
+      }
+
+      allow read: if isOwner(ownerFromId());
+      allow create: if isOwner(ownerFromId())
+                    && request.resource.data.uid == request.auth.uid;
+      allow update: if isOwner(ownerFromId());
+      allow delete: if isOwner(ownerFromId());
+
+      // Itens da refeição herdam a posse do documento pai.
+      match /itens/{itemId} {
+        allow read, write: if isOwner(refeicaoId.split('_')[0]);
+      }
+    }
+
+    // ── Catálogo global de alimentos ─────────────────────────
+    // Leitura liberada para usuários autenticados; escrita apenas
+    // pelo backend/console (negada ao cliente).
+    match /alimentos/{alimentoId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ── Dietas favoritas ─────────────────────────────────────
+    match /dietas_favoritas/{dietaId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn()
+                    && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isSignedIn()
+                    && resource.data.uid == request.auth.uid;
+    }
+  }
+}
